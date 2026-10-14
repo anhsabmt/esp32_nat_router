@@ -9,6 +9,7 @@ sdkconfig.*
 .mcp.json
 __pycache__/*
 managed_components/
+node_modules/
 dependencies.lock
 !dependencies.lock
 .gemini/

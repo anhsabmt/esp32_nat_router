@@ -36,8 +36,10 @@ def ping(port):
     m=re.search(r'(\d+) packets transmitted, (\d+) received',text)
     if not m:raise RuntimeError('No ping summary')
     return {'sent':int(m[1]),'received':int(m[2])}
-with serial.Serial(args.port,115200,timeout=.1) as port:
-    port.dtr=False;port.rts=False;read_for(port,2);command(port,'')
+port=serial.Serial();port.port=args.port;port.baudrate=115200;port.timeout=.1
+port.dtr=False;port.rts=False;port.open()
+with port:
+    read_for(port,2);command(port,'')
     initial=selected(command(port,'vpn_profile list'))
     if initial['id']!=args.profile or initial['state']!='connected':raise RuntimeError('Requested profile must already be selected and connected')
     result['initial']=initial;result['heap_before']=heap(port)

@@ -1,6 +1,6 @@
 {
   "name": "ESP32-C3 WireGuard Profiles (4MB)",
-  "version": "2.4.20-wgprofiles.2",
+  "version": "2.4.20-wgprofiles.3",
   "new_install_prompt_erase": true,
   "builds": [{
     "chipFamily": "ESP32-C3",

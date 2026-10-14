@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "engine": "WebKit 26.5",
+  "checks": [
+    "Unauthenticated VPN entry redirects to password setup",
+    "Authenticated status/list loads through real HTTP server",
+    "Metadata contains no secret fields; 390px viewport has no horizontal overflow",
+    "Two .conf files imported by mobile UI/FileReader",
+    "Normal-router button updates controller and releases VPN guard",
+    "Metadata edit/save works through real API",
+    "Selecting/disconnecting a stored profile keeps guard enabled",
+    "Web connect/switch returns original tunnel to connected",
+    "Delete removes only both synthetic test profiles",
+    "Expired session displays a clear auth state instead of Loading",
+    "No WebKit JavaScript errors"
+  ],
+  "limitations": "Real device HTTP and UI tested through STA/Ethernet. iPhone Safari and AP packet path still require user verification.",
+  "firmware": "2.4.20-wgprofiles.3",
+  "device_final_firmware": "2.4.20-wgprofiles.3",
+  "original_restore_completed_before_update": true,
+  "temporary_admin_password_removed": true
+}

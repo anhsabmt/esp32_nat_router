@@ -1,0 +1,110 @@
+{
+  "profile": 0,
+  "switches": [
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61988,
+        "minimum": 4500
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 61904,
+        "minimum": 4500
+      }
+    },
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61788,
+        "minimum": 4500
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 61672,
+        "minimum": 4500
+      }
+    },
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61556,
+        "minimum": 4500
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 61440,
+        "minimum": 4500
+      }
+    },
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61324,
+        "minimum": 4500
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 61164,
+        "minimum": 4500
+      }
+    }
+  ],
+  "pings": [
+    {
+      "sent": 3,
+      "received": 3
+    },
+    {
+      "sent": 3,
+      "received": 3
+    }
+  ],
+  "initial": {
+    "id": 0,
+    "state": "connected",
+    "protected": true
+  },
+  "heap_before": {
+    "free": 62228,
+    "minimum": 4500
+  },
+  "clone_id": 1,
+  "disconnected": {
+    "id": 1,
+    "state": "disconnected",
+    "protected": true
+  },
+  "reboot_disconnected": {
+    "id": 1,
+    "state": "disconnected",
+    "protected": true
+  },
+  "final": {
+    "id": 0,
+    "state": "connected",
+    "protected": true
+  },
+  "heap_after": {
+    "free": 65140,
+    "minimum": 47048
+  },
+  "firmware": "2.4.20-wgprofiles.3",
+  "temporary_test_profile_removed": true
+}

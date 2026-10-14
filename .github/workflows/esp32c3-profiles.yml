@@ -26,8 +26,22 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 -D 'SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.esp32c3' set-target esp32c3
           idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 build size
+          python tools/verify_vpn_page.py
           python tools/package_firmware.py --build build_esp32c3
       - uses: actions/upload-artifact@v4
         with:
           name: esp32c3-wireguard-profiles
           path: firmware_esp32c3/
+  safari-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: WebKit mobile UI regressions
+        working-directory: tests/web
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps webkit
+          npm test

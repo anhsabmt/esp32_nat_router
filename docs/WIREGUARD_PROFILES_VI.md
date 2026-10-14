@@ -1,6 +1,8 @@
 # ESP32-C3 SuperMini 4MB: nhiều profile WireGuard
 
-Phiên bản `2.4.20-wgprofiles.2`, tùy biến từ upstream `master` tại commit `c44331dd475455242a8a8164ebca798774111de6`.
+Phiên bản `2.4.20-wgprofiles.3`, tùy biến từ upstream `master` tại commit `c44331dd475455242a8a8164ebca798774111de6`.
+
+Bản .3 sửa luồng tạo mật khẩu/đăng nhập và tình trạng “Đang tải” kéo dài. Đã khôi phục bản gốc trước, sau đó theo yêu cầu mới đã cập nhật thiết bị lên .3 và test lại; thiết bị hiện chạy .3. Xem [báo cáo sửa lỗi](VPN_UI_REPAIR_VI.md).
 
 ## Tính năng
 
@@ -17,7 +19,7 @@ Profile đang được chọn được bảo vệ khỏi sửa/xóa/thay thế. 
 
 ## Nạp firmware lần đầu
 
-Firmware đã được nạp và xác minh hash trên thiết bị của bạn: ESP32-C3 revision v0.4, flash XMC 4MB, USB Serial/JTAG. Boot, tunnel cũ, chuyển profile bằng bản sao tạm và giữ trạng thái ngắt qua reboot đã kiểm tra. Xem báo cáo để phân biệt phần còn chưa xác minh.
+Bản .3 đã nạp thử và test giao diện web trên ESP32-C3 revision v0.4, flash XMC 4MB. Đã khôi phục bản gốc trước, sau đó theo yêu cầu mới cập nhật lại .3; test web và 8 lần chuyển/ngắt/reboot đạt. Mật khẩu thử đã gỡ, hãy đặt mật khẩu quản trị riêng trước khi vào VPN. Xem báo cáo để phân biệt phần còn chưa xác minh.
 
 Tải các file trong `firmware_esp32c3/`. Lần chuyển từ firmware upstream cần nạp **partition table mới**, không chỉ OTA file app. NVS router cũ giữ nguyên offset; partition VPN riêng được thêm vào phần flash trống. Nếu chọn erase toàn flash, Wi-Fi, mật khẩu và profile sẽ mất. Giữ bản gốc các file `.conf` ở máy tính.
 
@@ -82,8 +84,11 @@ python tools/embed_vpn_page.py
 python tools/run_tests.py --cc gcc --cjson "$IDF_PATH/components/json/cJSON"
 idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 -D 'SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.esp32c3' set-target esp32c3
 idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 build size
+python tools/verify_vpn_page.py
 python tools/package_firmware.py --build build_esp32c3
 ```
+
+Test giao diện WebKit: `cd tests/web`, `npm install`, `npx playwright install --with-deps webkit`, `npm test`. Các test này dùng fixture; test HTTP thiết bị thật được ghi riêng trong báo cáo.
 
 Workflow **ESP32-C3 WireGuard profiles** tự build/test khi push `master`/`feature/**`, có thể chạy bằng **Run workflow**. Firmware mới tải từ artifact của lần build. Workflow không tự commit firmware vào repo.
 
@@ -102,4 +107,4 @@ Chi tiết số đo build, SHA256 và phần chưa kiểm chứng: `BUILD_REPORT
 - Chuyển nhiều lần trong lúc DNS/SNTP/handshake đang chờ; theo dõi heap tối thiểu và stack của worker/web server.
 - Kiểm tra NAT, firewall, DHCP, port mapping và OTA với nhu cầu thực. Nên bắt đầu ít client và tắt PCAP/MQTT/OLED/remote console chưa dùng trên C3.
 
-Đã test USB trên thiết bị thật với tunnel có sẵn: 8 lần chuyển bằng profile clone cùng server, ping 3/3 trước/sau, giữ trạng thái chọn/ngắt qua reboot; sau đó khôi phục profile gốc và xóa clone. Mức heap thấp nhất quan sát trong bài test là 25,172 byte. Chưa kiểm chứng đổi IP/DNS giữa hai server khác nhau, web UI trên thiết bị thật, leak bằng packet capture từ client Wi-Fi, tải nhiều client, tốc độ hoặc OTA.
+Đã test USB trên thiết bị thật với tunnel có sẵn: 8 lần chuyển bằng profile clone cùng server, ping 3/3 trước/sau, giữ trạng thái chọn/ngắt qua reboot; sau đó khôi phục profile gốc và xóa clone. Mức heap thấp nhất quan sát trong bài test là 25,172 byte. Bản .3 đã kiểm tra web UI trên thiết bị thật qua LAN bằng WebKit: đăng nhập, import hai file, sửa/xóa, chọn/ngắt/chuyển và router thường. Chưa kiểm chứng Safari iPhone qua AP, đổi IP/DNS giữa hai server khác nhau, leak bằng packet capture từ client Wi-Fi, tải nhiều client, tốc độ hoặc OTA.

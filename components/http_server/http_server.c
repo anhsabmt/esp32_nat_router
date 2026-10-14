@@ -1258,6 +1258,11 @@ static esp_err_t index_get_handler(httpd_req_t *req)
                 }
             }
 
+            /* VPN management always requires a password, including first use. */
+            else if (httpd_query_key_value(buf, "vpn_auth_required", param, sizeof(param)) == ESP_OK) {
+                strcpy(login_message, "Set a router password and log in before managing VPN profiles.");
+            }
+
             /* Check for auth_required flag */
             else if (httpd_query_key_value(buf, "auth_required", param, sizeof(param)) == ESP_OK) {
                 strcpy(login_message, "Please log in to access that page.");
@@ -3477,15 +3482,24 @@ static httpd_uri_t setupp = {
 static esp_err_t vpn_get_handler(httpd_req_t *req)
 {
     resume_sta_if_scan_idle();
-    if (is_web_password_set() && !is_authenticated(req)) {
+    if (!is_web_password_set() || !is_authenticated(req)) {
         httpd_resp_set_status(req,"303 See Other");
-        httpd_resp_set_hdr(req,"Location","/?auth_required=1");
+        httpd_resp_set_hdr(req,"Location","/?vpn_auth_required=1");
+        httpd_resp_set_hdr(req,"Cache-Control","no-store");
         return httpd_resp_send(req,NULL,0);
     }
     httpd_resp_set_type(req,"text/html; charset=utf-8");
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
     httpd_resp_set_hdr(req,"Referrer-Policy","no-referrer");
-    return httpd_resp_send(req,VPN_PROFILES_PAGE,HTTPD_RESP_USE_STRLEN);
+    /* Stream bounded chunks so a slow phone does not pin a large send. */
+    size_t length=strlen(VPN_PROFILES_PAGE);
+    for (size_t offset=0;offset<length;offset+=1024) {
+        size_t count=length-offset;
+        if (count>1024) count=1024;
+        SEND_CHUNK(req,VPN_PROFILES_PAGE+offset,count);
+    }
+    SEND_CHUNK(req,NULL,0);
+    return ESP_OK;
 }
 
 static httpd_uri_t vpnp = {
