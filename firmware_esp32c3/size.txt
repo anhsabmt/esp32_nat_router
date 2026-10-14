@@ -8,13 +8,13 @@ Memory Type Usage Summary
 
 |-------------------+--------------+----------+----------------+---------------|
 
-| Flash Code        |      1049556 |          |                |               |
+| Flash Code        |      1051212 |          |                |               |
 
-|    .text          |      1049556 |          |                |               |
+|    .text          |      1051212 |          |                |               |
 
-| Flash Data        |       313345 |          |                |               |
+| Flash Data        |       313625 |          |                |               |
 
-|    .rodata        |       313088 |          |                |               |
+|    .rodata        |       313368 |          |                |               |
 
 |    .appdesc       |          256 |          |                |               |
 
@@ -38,7 +38,7 @@ Memory Type Usage Summary
 
 +------------------------------------------------------------------------------+
 
-Total image size: 1478244 bytes (.bin may be padded larger)
+Total image size: 1480180 bytes (.bin may be padded larger)
 
 Note: The reported total sizes may be smaller than those in the technical
 

@@ -1,9 +1,9 @@
 ESP32-C3 WireGuard Profiles Build Information
-Version: 2.4.20-wgprofiles.1
+Version: 2.4.20-wgprofiles.2
 Target: esp32c3, 4MB, 160MHz, USB Serial/JTAG
 Build date: 2026-10-14 (Asia/Bangkok)
 ESP-IDF: v5.5.4
 Upstream base: c44331dd475455242a8a8164ebca798774111de6
-App bytes: 1478352
-App SHA256: 09f48cac9eb768dcb912d25841895cd061a216fec57604c5403361fa2d095112
-Validation: local build and host/mock tests passed; hardware not flashed/tested.
+App bytes: 1480288
+App SHA256: 919958ac7191a9543ca92617c06e2465d29ddff5b398b6c8b5acfdc41292d258
+Validation: local build/host tests and USB flash/boot/profile-switch/reboot tests passed; client packet-leak tests remain unverified.

@@ -6,7 +6,7 @@ args=p.parse_args(); root=Path(__file__).resolve().parents[1]; build=root/'build
 common=['-Itests/stubs','-Iinclude','-Icomponents/esp_wireguard/include']
 sources=['tests/mock_nvs.c','main/vpn_profile_parser.c','main/vpn_profiles.c']
 cjson=Path(args.cjson).resolve()
-for test in ['test_profiles','test_controller','test_api','test_packet_policy']:
+for test in ['test_profiles','test_controller','test_api','test_packet_policy','test_migration']:
     output=build/(test+('.exe' if os.name=='nt' else ''))
     extra=[str(cjson/'cJSON.c'),'-I'+str(cjson)] if test=='test_api' else []
     subprocess.run([args.cc,*common,'-o',str(output),f'tests/{test}.c',*sources,*extra],cwd=root,check=True)

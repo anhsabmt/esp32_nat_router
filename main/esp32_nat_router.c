@@ -738,7 +738,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
          * Must precede the portmap restore: ip_portmap_add() is a silent
          * no-op until NAPT has allocated its tables. */
         if (ap_nat_enabled)
-            ip_napt_enable(my_ap_ip, 1);
+            esp_netif_napt_enable(wifiAP);
         delete_portmap_tab();
         apply_portmap_tab();
         const char *eff_dns = effective_ap_dns();
@@ -782,7 +782,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         /* Re-enable NAPT on every AP start: covers the initial start and any
          * restart caused by the band-aware scan forcing a channel change. */
         if (ap_nat_enabled && my_ap_ip != 0)
-            ip_napt_enable(my_ap_ip, 1);
+            esp_netif_napt_enable(wifiAP);
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED)
     {
@@ -851,7 +851,7 @@ void ap_set_enabled(bool enabled)
     if (enabled) {
         esp_wifi_start();
         if (ap_nat_enabled) {
-            ip_napt_enable(my_ap_ip, 1);
+            esp_netif_napt_enable(wifiAP);
             /* Portmaps restored while NAPT was off were dropped; re-add them */
             delete_portmap_tab();
             apply_portmap_tab();
@@ -864,7 +864,7 @@ void ap_set_enabled(bool enabled)
     if (enabled) {
         esp_wifi_set_mode(WIFI_MODE_APSTA);
         if (ap_nat_enabled) {
-            ip_napt_enable(my_ap_ip, 1);
+            esp_netif_napt_enable(wifiAP);
             /* Portmaps restored while NAPT was off were dropped; re-add them */
             delete_portmap_tab();
             apply_portmap_tab();
@@ -1682,7 +1682,7 @@ void app_main(void)
 
     if (!ap_disabled) {
         if (ap_nat_enabled) {
-            ip_napt_enable(my_ap_ip, 1);
+            esp_netif_napt_enable(wifiAP);
             /* The uplink may have got its IP before NAPT allocated its
              * tables, in which case the GOT_IP portmap restore was a no-op.
              * Delete first: ip_portmap_add() would duplicate existing entries. */

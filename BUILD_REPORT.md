@@ -9,8 +9,8 @@ Date: 2026-10-14 (Asia/Bangkok).
 - ESP-IDF: v5.5.4, revision `735507283d5b2f9fb363a1901172dbd9e847945d`.
 - WireGuard: vendored `02a24fad29365db09e0088df2f8c4414632fe35a`, with local lifecycle/secret cleanup fixes described in `components/esp_wireguard/LOCAL_CHANGES.md`.
 - Target: ESP32-C3, 160MHz, DIO 80MHz flash, 4MB, USB Serial/JTAG console. No PSRAM requirement.
-- Firmware version: `2.4.20-wgprofiles.1`.
-- C3 configuration explicitly disables IPv6 and enables lwIP thread-safety checks.
+- Firmware version: `2.4.20-wgprofiles.2`.
+- C3 configuration explicitly disables IPv6 and enables lwIP thread-safety checks. Original AP NAT enable calls now use the ESP-IDF esp_netif_napt_enable API, avoiding timeout initialization from the wrong thread.
 - Managed dependencies locked: led_strip 3.1.0~1, mDNS 1.14.0.
 
 ## Repository architecture assessment
@@ -21,9 +21,9 @@ Profiles are fixed-size versioned blobs in a dedicated 64KiB NVS partition; sele
 
 ## Successful local build
 
-- App `.bin`: **1,478,352 bytes** (1443.70 KiB).
+- App `.bin`: **1,480,288 bytes** (1445.59 KiB).
 - Each OTA app slot: **1,572,864 bytes** (1536 KiB).
-- Remaining app-slot space: **94,512 bytes**, **6.01%**.
+- Remaining app-slot space: **92,576 bytes**, **5.89%**.
 - Bootloader: 17,552 bytes, within the 0x8000 partition-table offset.
 - The ESP-IDF partition/app size check passed.
 - Static memory from final `idf.py size`: shared C3 DRAM/IRAM **141876 bytes** used of **321296**, **179420 bytes** unallocated statically. This is **not runtime free heap**; task/Wi-Fi/lwIP/crypto allocations occur at runtime. See `firmware_esp32c3/size.txt`.
@@ -55,7 +55,9 @@ Highest partition end 0x380000 is below 4MiB (0x400000); 512KiB remains unpartit
 
 ## Not verified
 
-No ESP32 was flashed. No physical ESP32-C3 SuperMini or live WireGuard server was available. Real handshakes, reboot persistence, DNS renewal on real clients, sustained switching/heap behavior, NAT/firewall/portmap regressions, OTA, throughput, and leak prevention using upstream packet capture remain hardware acceptance tests. Code and host tests implement fail-closed AP forwarding; they do not prove an end-to-end absence of leaks on hardware.
+A physical ESP32-C3 revision v0.4 with embedded XMC 4MB flash was identified on USB and flashed with hash verification. Boot completed without panic. Existing Wi-Fi and VPN credentials were retained; a complete legacy configuration was migrated to Imported VPN without exporting its keys. The USB hardware smoke test switched eight times between the original profile and a temporary clone of the same server configuration. All switches reached connected; ICMP checks received 3/3 before and after. Selected/disconnected/protected state survived restart. The original profile was restored and the temporary clone deleted. Measured free heap was 62,352 bytes before the smoke sequence and 60,284 afterward; the minimum during the sequence/restart was 25,172 bytes. CLI history and transient allocations affect these numbers; long-duration heap stability is not proven. See hardware-smoke-result.json.
+
+The host PC has Ethernet on a different subnet and could not reach the device web interface. Real-device web login/import/edit, AP-client DNS/public-IP switching between different servers, upstream packet capture/leak checks, multiple Wi-Fi clients, OTA, throughput, and NAT/firewall/portmap regression tests remain unverified. The same-server clone proves profile lifecycle, not a change of exit location. The router was left connected on the original migrated profile.
 
 The GitHub workflow is provided for future reproducible builds; its remote execution status is reported separately. Other ESP32 targets, PlatformIO and GitHub Pages deployment have not been tested/enabled.
 

@@ -1,6 +1,6 @@
 # ESP32-C3 SuperMini 4MB: nhiều profile WireGuard
 
-Phiên bản `2.4.20-wgprofiles.1`, tùy biến từ upstream `master` tại commit `c44331dd475455242a8a8164ebca798774111de6`.
+Phiên bản `2.4.20-wgprofiles.2`, tùy biến từ upstream `master` tại commit `c44331dd475455242a8a8164ebca798774111de6`.
 
 ## Tính năng
 
@@ -17,7 +17,7 @@ Profile đang được chọn được bảo vệ khỏi sửa/xóa/thay thế. 
 
 ## Nạp firmware lần đầu
 
-**Chưa flash lên thiết bị của bạn.** Firmware đã build cho chip ESP32-C3, flash 4MB, CPU 160MHz, console USB Serial/JTAG; chưa kiểm chứng phần cứng SuperMini cụ thể.
+Firmware đã được nạp và xác minh hash trên thiết bị của bạn: ESP32-C3 revision v0.4, flash XMC 4MB, USB Serial/JTAG. Boot, tunnel cũ, chuyển profile bằng bản sao tạm và giữ trạng thái ngắt qua reboot đã kiểm tra. Xem báo cáo để phân biệt phần còn chưa xác minh.
 
 Tải các file trong `firmware_esp32c3/`. Lần chuyển từ firmware upstream cần nạp **partition table mới**, không chỉ OTA file app. NVS router cũ giữ nguyên offset; partition VPN riêng được thêm vào phần flash trống. Nếu chọn erase toàn flash, Wi-Fi, mật khẩu và profile sẽ mất. Giữ bản gốc các file `.conf` ở máy tính.
 
@@ -50,7 +50,9 @@ Nếu nạp không ổn định, thử baud 115200 và cáp USB khác. Không t�
 5. Kiểm tra trạng thái **VPN đã kết nối**. Chờ SNTP/handshake nếu router vừa khởi động.
 6. Sau khi đổi DNS/profile, ngắt và kết nối lại Wi-Fi trên các thiết bị khách để nhận DNS DHCP mới. Kết nối TCP đang chạy có thể bị ngắt khi chuyển VPN.
 
-Không tự động chuyển cấu hình VPN đơn cũ sang profile. Cấu hình legacy/CLI được giữ để tương thích source; hãy import file `.conf` gốc vào giao diện mới và chọn profile. Một lựa chọn profile đã lưu có ưu tiên cao hơn các tham số VPN legacy. Factory reset bằng BOOT hoặc console xóa cả profile mới.
+Cấu hình VPN đơn cũ được chuyển thành profile **Imported VPN** khi đủ trường hợp lệ (gồm IPv4 DNS và full tunnel), chưa có lựa chọn/profile mới và không cần xuất private key. VPN cũ bị tắt sẽ được lưu thành profile nhưng không tự bật. Nếu không đủ trường, hãy import file `.conf` gốc. Một lựa chọn profile đã lưu có ưu tiên cao hơn các tham số VPN legacy. Factory reset bằng BOOT hoặc console xóa cả profile mới.
+
+Qua USB console có thể dùng `vpn_profile list`, `connect ID`, `select ID`, `disconnect`, `router`, `delete ID`, `clone ID NAME`. Các lệnh không in khóa bí mật. Clone phục vụ sao chép/sửa cấu hình và kiểm thử vòng đời; hai profile cùng cấu hình không chứng minh đã chuyển sang VPN server/IP public khác.
 
 ## Cấu hình được hỗ trợ
 
@@ -100,4 +102,4 @@ Chi tiết số đo build, SHA256 và phần chưa kiểm chứng: `BUILD_REPORT
 - Chuyển nhiều lần trong lúc DNS/SNTP/handshake đang chờ; theo dõi heap tối thiểu và stack của worker/web server.
 - Kiểm tra NAT, firewall, DHCP, port mapping và OTA với nhu cầu thực. Nên bắt đầu ít client và tắt PCAP/MQTT/OLED/remote console chưa dùng trên C3.
 
-Không có thiết bị hoặc server WireGuard thật trong phiên triển khai này; chưa chứng minh runtime, tốc độ, chống rò rỉ bằng packet capture thực hoặc mức RAM thấp nhất trên SuperMini.
+Đã test USB trên thiết bị thật với tunnel có sẵn: 8 lần chuyển bằng profile clone cùng server, ping 3/3 trước/sau, giữ trạng thái chọn/ngắt qua reboot; sau đó khôi phục profile gốc và xóa clone. Mức heap thấp nhất quan sát trong bài test là 25,172 byte. Chưa kiểm chứng đổi IP/DNS giữa hai server khác nhau, web UI trên thiết bị thật, leak bằng packet capture từ client Wi-Fi, tải nhiều client, tốc độ hoặc OTA.

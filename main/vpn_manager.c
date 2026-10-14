@@ -198,7 +198,32 @@ esp_err_t vpn_profiles_boot(void) {
             else { desired=false; state="storage_error"; }
             vpn_secret_clear(&p,sizeof(p));
         } else if (err==ESP_OK) { vpn_enabled=0; state="router"; }
-        else if (err==ESP_ERR_NVS_NOT_FOUND) { err=ESP_OK; }
+        else if (err==ESP_ERR_NVS_NOT_FOUND) {
+            err=ESP_OK;
+            vpn_profile_t p={.version=VPN_PROFILE_VERSION};
+            /* Migrate one complete legacy full-tunnel configuration without
+             * ever sending its keys to the console, browser or an API. */
+            strcpy(p.name,"Imported VPN");
+#define LEGACY(dst,src) if ((src) && strlen(src)<sizeof(p.dst)) strcpy(p.dst,src)
+            LEGACY(private_key,vpn_private_key); LEGACY(public_key,vpn_public_key);
+            LEGACY(preshared_key,vpn_preshared_key); LEGACY(endpoint,vpn_endpoint);
+            LEGACY(address,vpn_address); LEGACY(netmask,vpn_netmask); LEGACY(dns,vpn_dns);
+#undef LEGACY
+            p.port=vpn_port; p.keepalive=vpn_keepalive; p.mtu=vpn_mtu;
+            vpn_profile_t existing;
+            esp_err_t prior=vpn_profile_load(0,&existing);
+            vpn_secret_clear(&existing,sizeof(existing));
+            if (prior==ESP_ERR_NVS_NOT_FOUND && vpn_route_all && vpn_profile_validate(&p)==ESP_OK) {
+                bool connect=vpn_enabled!=0;
+                err=vpn_profile_save(0,&p);
+                if (err==ESP_OK) err=vpn_selection_save(connect ? 0 : -1,connect);
+                if (err==ESP_OK && connect) {
+                    selected=0; desired=true; vpn_profile_guard=true;
+                    apply_profile(&p); state="waiting_uplink";
+                }
+            }
+            vpn_secret_clear(&p,sizeof(p));
+        }
     }
     if (err!=ESP_OK) { vpn_profile_guard=true; desired=false; vpn_enabled=0; state="storage_error"; last_error=err; }
     if (xTaskCreate(vpn_connect_task,"vpn_worker",4096,NULL,5,&worker)!=pdPASS) {
@@ -288,4 +313,22 @@ esp_err_t vpn_profile_remove(int id) {
     if (!control) return ESP_ERR_INVALID_STATE;
     lock(); esp_err_t err=id==selected ? ESP_ERR_INVALID_STATE : vpn_profile_delete(id);
     unlock(); return err;
+}
+esp_err_t vpn_profile_clone(int id,const char *name,int *saved_id) {
+    if (!control || !name || !name[0] || strlen(name)>=sizeof(active.name)) return ESP_ERR_INVALID_ARG;
+    lock(); vpn_profile_t p;
+    esp_err_t err=vpn_profile_load(id,&p); int target=-1;
+    if (err==ESP_OK) {
+        vpn_profile_t existing;
+        for (int i=0;i<VPN_PROFILE_MAX;i++) {
+            esp_err_t found=vpn_profile_load(i,&existing);
+            vpn_secret_clear(&existing,sizeof(existing));
+            if (found==ESP_ERR_NVS_NOT_FOUND) { target=i; break; }
+            if (found!=ESP_OK) { err=found; break; }
+        }
+        if (target<0 && err==ESP_OK) err=ESP_ERR_NO_MEM;
+        if (err==ESP_OK) { strcpy(p.name,name); err=vpn_profile_save(target,&p); }
+        if (err==ESP_OK && saved_id) *saved_id=target;
+    }
+    vpn_secret_clear(&p,sizeof(p)); unlock(); return err;
 }

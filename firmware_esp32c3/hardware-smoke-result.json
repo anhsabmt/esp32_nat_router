@@ -1,0 +1,108 @@
+{
+  "profile": 0,
+  "switches": [
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61672,
+        "minimum": 42496
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 62260,
+        "minimum": 42496
+      }
+    },
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61776,
+        "minimum": 42496
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 57196,
+        "minimum": 37956
+      }
+    },
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61508,
+        "minimum": 37956
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 61372,
+        "minimum": 37956
+      }
+    },
+    {
+      "id": 1,
+      "state": "connected",
+      "heap": {
+        "free": 61244,
+        "minimum": 37956
+      }
+    },
+    {
+      "id": 0,
+      "state": "connected",
+      "heap": {
+        "free": 61096,
+        "minimum": 37956
+      }
+    }
+  ],
+  "pings": [
+    {
+      "sent": 3,
+      "received": 3
+    },
+    {
+      "sent": 3,
+      "received": 3
+    }
+  ],
+  "initial": {
+    "id": 0,
+    "state": "connected",
+    "protected": true
+  },
+  "heap_before": {
+    "free": 62352,
+    "minimum": 47144
+  },
+  "clone_id": 1,
+  "disconnected": {
+    "id": 1,
+    "state": "disconnected",
+    "protected": true
+  },
+  "reboot_disconnected": {
+    "id": 1,
+    "state": "disconnected",
+    "protected": true
+  },
+  "final": {
+    "id": 0,
+    "state": "connected",
+    "protected": true
+  },
+  "heap_after": {
+    "free": 60284,
+    "minimum": 25172
+  }
+}

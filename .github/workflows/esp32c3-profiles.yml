@@ -15,13 +15,15 @@ jobs:
         shell: bash
         run: |
           . /opt/esp/idf/export.sh
+          cd "$GITHUB_WORKSPACE"
           python tools/run_tests.py --cc gcc --cjson "$IDF_PATH/components/json/cJSON"
           python tools/embed_vpn_page.py
-          git diff --exit-code -- components/http_server/pages/vpn_profiles.h
+          git -c safe.directory="$GITHUB_WORKSPACE" diff --exit-code -- components/http_server/pages/vpn_profiles.h
       - name: Build ESP32-C3 4MB
         shell: bash
         run: |
           . /opt/esp/idf/export.sh
+          cd "$GITHUB_WORKSPACE"
           idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 -D 'SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.esp32c3' set-target esp32c3
           idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 build size
           python tools/package_firmware.py --build build_esp32c3

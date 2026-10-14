@@ -31,6 +31,7 @@ esp_err_t vpn_profile_import(int id, const char *name, const char *conf,
                             int *saved_id, char *error, size_t error_len);
 esp_err_t vpn_profile_update(int id, const vpn_profile_t *metadata);
 esp_err_t vpn_profile_remove(int id);
+esp_err_t vpn_profile_clone(int id,const char *name,int *saved_id);
 esp_err_t vpn_profile_select(int id, bool connect);
 esp_err_t vpn_profile_stop(void);
 esp_err_t vpn_router_mode(void);

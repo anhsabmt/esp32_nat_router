@@ -413,8 +413,38 @@ esp_err_t vpn_import_conf(const char *text)
     return ESP_OK;
 }
 
+#include "vpn_profiles.h"
+static int profile_cmd(int argc,char **argv)
+{
+    if (argc<2 || !strcmp(argv[1],"list")) {
+        printf("Selected profile: %d, state: %s, protected: %s\n",vpn_selected_profile(),vpn_status(),vpn_profile_guard ? "yes" : "no");
+        for (int id=0;id<VPN_PROFILE_MAX;id++) {
+            vpn_profile_t p;
+            if (vpn_profile_get(id,&p)==ESP_OK) printf("%d: %s\n",id,p.name);
+            vpn_secret_clear(&p,sizeof(p));
+        }
+        return 0;
+    }
+    esp_err_t err=ESP_ERR_INVALID_ARG;
+    int id=-1;
+    if (argc>=3 && strlen(argv[2])==1 && argv[2][0]>='0' && argv[2][0]<'0'+VPN_PROFILE_MAX) id=argv[2][0]-'0';
+    if (!strcmp(argv[1],"disconnect")) err=vpn_profile_stop();
+    else if (!strcmp(argv[1],"router")) err=vpn_router_mode();
+    else if (id>=0 && !strcmp(argv[1],"connect")) err=vpn_profile_select(id,true);
+    else if (id>=0 && !strcmp(argv[1],"select")) err=vpn_profile_select(id,false);
+    else if (id>=0 && !strcmp(argv[1],"delete")) err=vpn_profile_remove(id);
+    else if (id>=0 && argc==4 && !strcmp(argv[1],"clone")) {
+        int saved=-1; err=vpn_profile_clone(id,argv[3],&saved);
+        if (err==ESP_OK) printf("Cloned profile ID: %d\n",saved);
+    }
+    printf("Profile operation: %s (%d)\n",err==ESP_OK ? "OK" : "failed",err);
+    return err==ESP_OK ? 0 : 1;
+}
+
 void register_router(void)
 {
+    const esp_console_cmd_t profiles={.command="vpn_profile",.help="list | connect ID | select ID | disconnect | router | delete ID | clone ID NAME (no key output)",.func=profile_cmd};
+    ESP_ERROR_CHECK(esp_console_cmd_register(&profiles));
     register_show();
 #if !CONFIG_ETH_UPLINK
     register_set_sta();
