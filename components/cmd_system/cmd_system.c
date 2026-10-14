@@ -15,6 +15,7 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "nvs.h"
+#include "nvs_flash.h"
 #include "router_config.h"
 #include "esp_sleep.h"
 #include "esp_flash.h"
@@ -165,7 +166,12 @@ static int factory_reset(int argc, char **argv)
         ESP_LOGE(TAG, "Failed to erase NVS namespace: %s", esp_err_to_name(err));
         return 1;
     }
-    ESP_LOGW(TAG, "Factory reset: NVS namespace '%s' erased, restarting...", PARAM_NAMESPACE);
+    err = nvs_flash_erase_partition("vpn_nvs");
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to erase VPN profile partition: %s", esp_err_to_name(err));
+        return 1;
+    }
+    ESP_LOGW(TAG, "Factory reset: router settings and VPN profiles erased, restarting...");
     esp_wifi_restore();
     esp_restart();
     return 0; // Never reached

@@ -1,0 +1,31 @@
+name: ESP32-C3 WireGuard profiles
+on:
+  push:
+    branches: [master, 'feature/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host parser, storage, controller and HTTP tests
+        shell: bash
+        run: |
+          . /opt/esp/idf/export.sh
+          python tools/run_tests.py --cc gcc --cjson "$IDF_PATH/components/json/cJSON"
+          python tools/embed_vpn_page.py
+          git diff --exit-code -- components/http_server/pages/vpn_profiles.h
+      - name: Build ESP32-C3 4MB
+        shell: bash
+        run: |
+          . /opt/esp/idf/export.sh
+          idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 -D 'SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.defaults.esp32c3' set-target esp32c3
+          idf.py -B build_esp32c3 -D SDKCONFIG=sdkconfig.esp32c3 build size
+          python tools/package_firmware.py --build build_esp32c3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32c3-wireguard-profiles
+          path: firmware_esp32c3/

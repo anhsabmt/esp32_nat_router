@@ -148,6 +148,8 @@ const int WIFI_CONNECTED_BIT = BIT0;
 
 #define DEFAULT_DNS "8.8.8.8"
 
+#include "vpn_profiles.h"
+
 /* Effective DNS for AP clients: VPN DNS (while VPN enabled) overrides the
  * manual ap_dns override, which in turn overrides the upstream-supplied DNS.
  * Returns NULL when neither override is set so callers fall back to upstream. */
@@ -156,6 +158,31 @@ static const char* effective_ap_dns(void)
     if (vpn_enabled && vpn_dns && vpn_dns[0]) return vpn_dns;
     if (ap_dns && ap_dns[0]) return ap_dns;
     return NULL;
+}
+
+void vpn_refresh_ap_dns(void)
+{
+    extern esp_netif_t *wifiAP;
+#if CONFIG_ETH_UPLINK
+    extern esp_netif_t *ethNetif;
+#else
+    extern esp_netif_t *wifiSTA;
+#endif
+    if (!wifiAP) return;
+    esp_netif_dns_info_t dns={0};
+    const char *override=effective_ap_dns();
+    if (override) {
+        dns.ip.type=ESP_IPADDR_TYPE_V4;
+        dns.ip.u_addr.ip4.addr=esp_ip4addr_aton(override);
+    } else {
+#if CONFIG_ETH_UPLINK
+        esp_netif_t *uplink=ethNetif;
+#else
+        esp_netif_t *uplink=wifiSTA;
+#endif
+        if (!uplink || esp_netif_get_dns_info(uplink,ESP_NETIF_DNS_MAIN,&dns)!=ESP_OK) return;
+    }
+    esp_netif_set_dns_info(wifiAP,ESP_NETIF_DNS_MAIN,&dns);
 }
 
 #if !CONFIG_ETH_UPLINK
@@ -386,6 +413,7 @@ void * led_status_thread(void * p)
                         nvs_commit(nvs);
                         nvs_close(nvs);
                     }
+                    nvs_flash_erase_partition("vpn_nvs");
                     esp_wifi_restore();
                     esp_restart();
                 }
@@ -425,6 +453,7 @@ static void eth_event_handler(void* arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "Ethernet link up");
         } else if (event_id == ETHERNET_EVENT_DISCONNECTED) {
             ESP_LOGI(TAG, "Ethernet link down");
+            ap_connect = false;
             if (vpn_connected) {
                 vpn_disconnect();
             }
@@ -673,6 +702,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
         ESP_LOGI(TAG,"disconnected - retry to connect to the AP");
+        ap_connect = false;
         if (vpn_connected) {
             vpn_disconnect();
         }
@@ -1585,6 +1615,10 @@ void app_main(void)
     if (get_config_param_int("vpn_rall", &vpn_rall_setting) == ESP_OK) {
         vpn_route_all = (int32_t)vpn_rall_setting;
     }
+    /* Restore profile choice/connection intent before starting WiFi or NAT. */
+    esp_err_t profile_err=vpn_profiles_boot();
+    if (profile_err!=ESP_OK) ESP_LOGE(TAG,"VPN profile storage/worker failed: %d",profile_err);
+
     // Cache VPN subnet for kill switch packet filtering
     if (vpn_address && vpn_address[0]) {
         ip_addr_t addr, mask;

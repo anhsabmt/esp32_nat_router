@@ -6,3 +6,8 @@ CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160=y
 # Use built-in USB_SERIAL_JTAG for console output
 CONFIG_ESP_CONSOLE_UART_DEFAULT=n
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Router VPN profiles deliberately provide an IPv4 full tunnel only.
+# IPv6 forwarding must not bypass the tunnel.
+CONFIG_LWIP_IPV6=n
+CONFIG_LWIP_CHECK_THREAD_SAFETY=y

@@ -88,16 +88,21 @@ static void html_escape_to(char *dst, size_t dst_len, const char *src)
 static const char *get_client_ip(httpd_req_t *req, char *buf, size_t buf_len)
 {
     int sockfd = httpd_req_to_sockfd(req);
-    struct sockaddr_in6 addr6;
+    struct sockaddr_storage addr6;
     socklen_t addr_len = sizeof(addr6);
     if (getpeername(sockfd, (struct sockaddr *)&addr6, &addr_len) == 0) {
         /* ESP-IDF httpd uses IPv6 sockets; IPv4 clients appear as
          * ::ffff:x.x.x.x (IPv4-mapped IPv6).  Extract the IPv4 part. */
-        if (addr6.sin6_family == AF_INET6) {
+#if LWIP_IPV6
+        if (addr6.ss_family == AF_INET6) {
+            struct sockaddr_in6 *ip6=(struct sockaddr_in6 *)&addr6;
             struct in_addr ipv4;
-            memcpy(&ipv4, addr6.sin6_addr.s6_addr + 12, 4);
+            memcpy(&ipv4, ip6->sin6_addr.s6_addr + 12, 4);
             inet_ntoa_r(ipv4, buf, buf_len);
         } else {
+#else
+        {
+#endif
             struct sockaddr_in *addr4 = (struct sockaddr_in *)&addr6;
             inet_ntoa_r(addr4->sin_addr, buf, buf_len);
         }
@@ -134,15 +139,20 @@ static esp_err_t http_open_fn(httpd_handle_t hd, int sockfd)
     setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &ka_intvl, sizeof(ka_intvl));
     setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPCNT, &ka_cnt, sizeof(ka_cnt));
 
-    struct sockaddr_in6 local_addr6;
+    struct sockaddr_storage local_addr6;
     socklen_t addr_len = sizeof(local_addr6);
     uint32_t local_ip = 0;  /* network byte order */
 
     if (getsockname(sockfd, (struct sockaddr *)&local_addr6, &addr_len) == 0) {
-        if (local_addr6.sin6_family == AF_INET6) {
+#if LWIP_IPV6
+        if (local_addr6.ss_family == AF_INET6) {
+            struct sockaddr_in6 *ip6=(struct sockaddr_in6 *)&local_addr6;
             /* IPv4-mapped IPv6: last 4 bytes of s6_addr are the IPv4 address */
-            memcpy(&local_ip, local_addr6.sin6_addr.s6_addr + 12, 4);
+            memcpy(&local_ip, ip6->sin6_addr.s6_addr + 12, 4);
         } else {
+#else
+        {
+#endif
             local_ip = ((struct sockaddr_in *)&local_addr6)->sin_addr.s_addr;
         }
     }
@@ -939,63 +949,7 @@ static httpd_uri_t config_importp = {
     .handler   = config_import_handler,
 };
 
-/* --- WireGuard .conf import handler --- */
-
-static esp_err_t vpn_import_handler(httpd_req_t *req)
-{
-    if (!check_csrf(req)) {
-        { char _ip[16]; ESP_LOGW(TAG, "CSRF rejected /api/vpn-import from %s", get_client_ip(req, _ip, sizeof(_ip))); }
-        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "CSRF check failed");
-        return ESP_FAIL;
-    }
-    if (is_web_password_set() && !is_authenticated(req)) {
-        { char _ip[16]; ESP_LOGW(TAG, "Unauthenticated access to /api/vpn-import from %s", get_client_ip(req, _ip, sizeof(_ip))); }
-        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "Not authenticated");
-        return ESP_FAIL;
-    }
-
-    if (req->content_len == 0 || req->content_len > 4096) {
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_send(req, "{\"ok\":false,\"msg\":\"Invalid body size\"}", HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
-    }
-
-    char *body = malloc(req->content_len + 1);
-    if (!body) {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
-        return ESP_FAIL;
-    }
-
-    int total = 0;
-    while (total < req->content_len) {
-        int ret = httpd_req_recv(req, body + total, req->content_len - total);
-        if (ret <= 0) {
-            free(body);
-            if (ret == HTTPD_SOCK_ERR_TIMEOUT) httpd_resp_send_408(req);
-            return ESP_FAIL;
-        }
-        total += ret;
-    }
-    body[total] = '\0';
-
-    esp_err_t err = vpn_import_conf(body);
-    free(body);
-
-    httpd_resp_set_type(req, "application/json");
-    if (err == ESP_OK) {
-        httpd_resp_send(req, "{\"ok\":true,\"msg\":\"WireGuard config imported. Rebooting...\"}", HTTPD_RESP_USE_STRLEN);
-        esp_timer_start_once(restart_timer, 3000000);
-    } else {
-        httpd_resp_send(req, "{\"ok\":false,\"msg\":\"Import failed: need PrivateKey, PublicKey, Endpoint and Address\"}", HTTPD_RESP_USE_STRLEN);
-    }
-    return ESP_OK;
-}
-
-static httpd_uri_t vpn_importp = {
-    .uri       = "/api/vpn-import",
-    .method    = HTTP_POST,
-    .handler   = vpn_import_handler,
-};
+#include "vpn_profiles_api.h"
 
 /* --- OTA Firmware Upload handler --- */
 
@@ -3518,238 +3472,20 @@ static httpd_uri_t setupp = {
 };
 #endif /* !CONFIG_ETH_UPLINK */
 
-/* VPN page GET handler */
+/* Profile page contains no rendered secrets and never mutates via GET. */
+#include "pages/vpn_profiles.h"
 static esp_err_t vpn_get_handler(httpd_req_t *req)
 {
     resume_sta_if_scan_idle();
-    /* Check authentication if password protection is enabled */
-    bool password_protection_enabled = is_web_password_set();
-
-    if (password_protection_enabled && !is_authenticated(req)) {
-        { char _ip[16]; ESP_LOGW(TAG, "Unauthenticated access to /vpn from %s", get_client_ip(req, _ip, sizeof(_ip))); }
-        httpd_resp_set_status(req, "303 See Other");
-        httpd_resp_set_hdr(req, "Location", "/?auth_required=1");
-        httpd_resp_send(req, NULL, 0);
-        return ESP_OK;
+    if (is_web_password_set() && !is_authenticated(req)) {
+        httpd_resp_set_status(req,"303 See Other");
+        httpd_resp_set_hdr(req,"Location","/?auth_required=1");
+        return httpd_resp_send(req,NULL,0);
     }
-
-    char* buf = NULL;
-    size_t buf_len;
-
-    /* Read URL query string */
-    buf_len = httpd_req_get_url_query_len(req) + 1;
-    if (buf_len > 1) {
-        buf = malloc(buf_len);
-        if (buf != NULL && httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-            ESP_LOGI(TAG, "VPN query => %s", buf);
-
-            char param[128];
-            bool has_config = false;
-
-            /* Check if this is a form submission */
-            if (httpd_query_key_value(buf, "vpn_enabled", param, sizeof(param)) == ESP_OK) {
-                has_config = true;
-                nvs_handle_t nvs;
-                if (nvs_open(PARAM_NAMESPACE, NVS_READWRITE, &nvs) == ESP_OK) {
-                    nvs_set_i32(nvs, "vpn_enabled", atoi(param));
-
-                    if (httpd_query_key_value(buf, "vpn_privkey", param, sizeof(param)) == ESP_OK) {
-                        preprocess_string(param);
-                        if (param[0] != '\0')
-                            nvs_set_str(nvs, "vpn_privkey", param);
-                    }
-                    if (httpd_query_key_value(buf, "vpn_pubkey", param, sizeof(param)) == ESP_OK) {
-                        preprocess_string(param);
-                        nvs_set_str(nvs, "vpn_pubkey", param);
-                    }
-                    if (httpd_query_key_value(buf, "vpn_psk", param, sizeof(param)) == ESP_OK) {
-                        preprocess_string(param);
-                        if (param[0] != '\0')
-                            nvs_set_str(nvs, "vpn_psk", param);
-                    }
-                    if (httpd_query_key_value(buf, "vpn_endpoint", param, sizeof(param)) == ESP_OK) {
-                        preprocess_string(param);
-                        nvs_set_str(nvs, "vpn_endpoint", param);
-                    }
-                    if (httpd_query_key_value(buf, "vpn_port", param, sizeof(param)) == ESP_OK) {
-                        nvs_set_i32(nvs, "vpn_port", atoi(param));
-                    }
-                    if (httpd_query_key_value(buf, "vpn_ip", param, sizeof(param)) == ESP_OK) {
-                        preprocess_string(param);
-                        nvs_set_str(nvs, "vpn_ip", param);
-                    }
-                    if (httpd_query_key_value(buf, "vpn_mask", param, sizeof(param)) == ESP_OK) {
-                        preprocess_string(param);
-                        nvs_set_str(nvs, "vpn_mask", param);
-                    }
-                    if (httpd_query_key_value(buf, "vpn_dns", param, sizeof(param)) == ESP_OK) {
-                        preprocess_string(param);
-                        nvs_set_str(nvs, "vpn_dns", param);
-                    }
-                    if (httpd_query_key_value(buf, "vpn_ka", param, sizeof(param)) == ESP_OK) {
-                        nvs_set_i32(nvs, "vpn_ka", atoi(param));
-                    }
-                    if (httpd_query_key_value(buf, "vpn_mtu", param, sizeof(param)) == ESP_OK) {
-                        int mtu = atoi(param);
-                        if (mtu >= VPN_MTU_MIN && mtu <= VPN_MTU_MAX) {
-                            nvs_set_i32(nvs, "vpn_mtu", mtu);
-                        }
-                    }
-                    if (httpd_query_key_value(buf, "vpn_ks", param, sizeof(param)) == ESP_OK) {
-                        nvs_set_i32(nvs, "vpn_ks", atoi(param));
-                    }
-                    if (httpd_query_key_value(buf, "vpn_rall", param, sizeof(param)) == ESP_OK) {
-                        nvs_set_i32(nvs, "vpn_rall", atoi(param));
-                    }
-
-                    nvs_commit(nvs);
-                    nvs_close(nvs);
-                    ESP_LOGI(TAG, "VPN settings saved, scheduling restart");
-                    esp_timer_start_once(restart_timer, 500000);
-                }
-            }
-
-            /* If config was submitted, let the JS handle the "rebooting" message */
-            if (has_config) {
-                /* Fall through to render the page (JS will detect query params and show reboot msg) */
-            }
-        }
-        if (buf) free(buf);
-    }
-
-    /* Reusable buffer for VPN page rows.
-     * Stack buffer (not heap): a SEND_CHUNK bail-out on a dead client returns
-     * immediately, and a heap buffer here would leak on every such bail. */
-    #define VPN_BUF_SIZE 768
-    char row[VPN_BUF_SIZE];
-
-    /* Head */
-    SEND_CHUNK(req, VPN_CHUNK_HEAD, HTTPD_RESP_USE_STRLEN);
-
-    /* Logout button if authenticated */
-    if (session_active && password_protection_enabled) {
-        SEND_CHUNK(req,
-            "<a href='/?logout=1' style='padding: 0.4rem 1rem; background: rgba(255,82,82,0.15); color: #ff5252; border: 1px solid #ff5252; border-radius: 6px; text-decoration: none; font-size: 0.85rem; font-weight: 500;'>Logout</a>",
-            HTTPD_RESP_USE_STRLEN);
-    }
-
-    /* Mid (script) */
-    SEND_CHUNK(req, VPN_CHUNK_MID, HTTPD_RESP_USE_STRLEN);
-
-    /* Status section */
-    SEND_CHUNK(req, "<h2>Status</h2><div class='status-table'><table>", HTTPD_RESP_USE_STRLEN);
-
-    if (vpn_enabled) {
-        const char *state, *color;
-        if (vpn_is_connected()) {
-            state = "Connected"; color = "#4caf50";
-        } else if (vpn_connected) {
-            state = "Handshake Pending"; color = "#ffc107";
-        } else {
-            state = "Disconnected"; color = "#f44336";
-        }
-        snprintf(row, VPN_BUF_SIZE, "<tr><td>VPN:</td><td><strong style='color:%s;'>%s</strong></td></tr>", color, state);
-    } else {
-        snprintf(row, VPN_BUF_SIZE, "<tr><td>VPN:</td><td><strong style='color:#888;'>Disabled</strong></td></tr>");
-    }
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    if (vpn_address && vpn_address[0]) {
-        snprintf(row, VPN_BUF_SIZE, "<tr><td>Tunnel IP:</td><td>%s</td></tr>", vpn_address);
-        SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-    }
-    snprintf(row, VPN_BUF_SIZE, "<tr><td>MSS Clamp:</td><td>%u</td></tr><tr><td>Path MTU:</td><td>%u</td></tr>",
-             ap_mss_clamp, ap_pmtu);
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE, "<tr><td>Kill Switch:</td><td><strong style='color:%s;'>%s</strong></td></tr>",
-             vpn_killswitch ? "#4caf50" : "#888", vpn_killswitch ? "On" : "Off");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE, "<tr><td>Route All:</td><td><strong style='color:%s;'>%s</strong></td></tr>",
-             vpn_route_all ? "#4caf50" : "#2196f3", vpn_route_all ? "Yes" : "No (split tunnel)");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    SEND_CHUNK(req, "</table></div>", HTTPD_RESP_USE_STRLEN);
-
-    /* Form - streamed field by field to avoid large snprintf */
-    SEND_CHUNK(req, VPN_CHUNK_FORM_OPEN, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Enabled</td><td><select name='vpn_enabled'>"
-        "<option value='1' %s>On</option><option value='0' %s>Off</option>"
-        "</select></td></tr>",
-        vpn_enabled ? "selected" : "", vpn_enabled ? "" : "selected");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Private Key</td><td><input type='password' name='vpn_privkey' placeholder='%s'/></td></tr>",
-        (vpn_private_key && vpn_private_key[0]) ? "unchanged" : "Base64 private key");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Public Key</td><td><input type='text' name='vpn_pubkey' value='%s' placeholder='Peer base64 public key'/></td></tr>",
-        vpn_public_key ? vpn_public_key : "");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Preshared Key</td><td><input type='password' name='vpn_psk' placeholder='%s'/></td></tr>",
-        (vpn_preshared_key && vpn_preshared_key[0]) ? "unchanged" : "Optional");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Endpoint</td><td><input type='text' name='vpn_endpoint' value='%s' placeholder='Host or IP'/></td></tr>"
-        "<tr><td>Port</td><td><input type='number' name='vpn_port' value='%d' min='1' max='65535'/></td></tr>"
-        "<tr><td>Tunnel IP</td><td><input type='text' name='vpn_ip' value='%s' placeholder='e.g. 10.0.0.2'/></td></tr>"
-        "<tr><td>Netmask</td><td><input type='text' name='vpn_mask' value='%s' placeholder='255.255.255.0'/></td></tr>",
-        vpn_endpoint ? vpn_endpoint : "",
-        (int)vpn_port,
-        vpn_address ? vpn_address : "",
-        vpn_netmask ? vpn_netmask : "255.255.255.0");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>DNS</td><td><input type='text' name='vpn_dns' value='%s' placeholder='Optional, e.g. 10.2.0.1'/></td></tr>",
-        vpn_dns ? vpn_dns : "");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Keepalive (sec)</td><td><input type='number' name='vpn_ka' value='%d' min='0' max='65535'/></td></tr>",
-        (int)vpn_keepalive);
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>MTU</td><td><input type='number' name='vpn_mtu' value='%d' min='%d' max='%d'/>"
-        "<br><small>Lower (e.g. 1280-1320) if the tunnel is up but traffic stalls (CGNAT, PPPoE, LTE)</small></td></tr>",
-        (int)vpn_mtu, VPN_MTU_MIN, VPN_MTU_MAX);
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Kill Switch</td><td><select name='vpn_ks'>"
-        "<option value='1' %s>On</option><option value='0' %s>Off</option>"
-        "</select></td></tr>",
-        vpn_killswitch ? "selected" : "", vpn_killswitch ? "" : "selected");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    snprintf(row, VPN_BUF_SIZE,
-        "<tr><td>Route All</td><td><select name='vpn_rall'>"
-        "<option value='1' %s>Yes (all traffic)</option><option value='0' %s>No (split tunnel)</option>"
-        "</select></td></tr>",
-        vpn_route_all ? "selected" : "", vpn_route_all ? "" : "selected");
-    SEND_CHUNK(req, row, HTTPD_RESP_USE_STRLEN);
-
-    SEND_CHUNK(req, VPN_CHUNK_FORM_CLOSE, HTTPD_RESP_USE_STRLEN);
-
-    /* Import section (paste a standard WireGuard .conf) - after the config fields */
-    SEND_CHUNK(req, VPN_CHUNK_IMPORT, HTTPD_RESP_USE_STRLEN);
-
-    /* Page footer (Home button + close tags) */
-    SEND_CHUNK(req, VPN_CHUNK_PAGE_END, HTTPD_RESP_USE_STRLEN);
-
-    /* End chunked response */
-    SEND_CHUNK(req, NULL, 0);
-
-    return ESP_OK;
+    httpd_resp_set_type(req,"text/html; charset=utf-8");
+    httpd_resp_set_hdr(req,"Cache-Control","no-store");
+    httpd_resp_set_hdr(req,"Referrer-Policy","no-referrer");
+    return httpd_resp_send(req,VPN_PROFILES_PAGE,HTTPD_RESP_USE_STRLEN);
 }
 
 static httpd_uri_t vpnp = {
@@ -3766,7 +3502,7 @@ httpd_handle_t start_webserver(uint16_t port)
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = port;
     config.stack_size = 16384;  // Large stack needed for mappings page with 3x 2KB HTML buffers
-    config.max_uri_handlers = 14;
+    config.max_uri_handlers = 16;
     config.max_uri_len = 1024;
     config.open_fn = http_open_fn;
     /* Fail a stalled send/recv fast (default 5s) so an abandoned connection
@@ -3813,7 +3549,8 @@ httpd_handle_t start_webserver(uint16_t port)
         httpd_register_uri_handler(server, &favicon_uri);
         httpd_register_uri_handler(server, &config_exportp);
         httpd_register_uri_handler(server, &config_importp);
-        httpd_register_uri_handler(server, &vpn_importp);
+        httpd_register_uri_handler(server, &vpn_profiles_getp);
+        httpd_register_uri_handler(server, &vpn_profiles_postp);
         httpd_register_uri_handler(server, &ota_uploadp);
 
 #if CONFIG_ETH_UPLINK

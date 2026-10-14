@@ -24,6 +24,11 @@
 #include "router_config.h"
 #include "wifi_config.h"
 #include "vpn_config.h"
+#include "vpn_profiles.h"
+#include "vpn_packet_policy.h"
+#include "lwip/tcpip.h"
+#include "lwip/ip4.h"
+#include "netif/ethernet.h"
 #include "led_strip_status.h"
 
 #if CONFIG_ETH_UPLINK
@@ -502,6 +507,22 @@ static void send_icmp_frag_needed(struct pbuf *p, struct netif *netif, uint16_t 
 static IRAM_ATTR err_t ap_netif_input_hook(struct pbuf *p, struct netif *netif) {
     bool is_acl_monitored = false;
 
+    /* Profile policy is fail-closed. Copy headers across chained pbufs.
+     * DHCP and AP-local access remain available even with no tunnel. */
+    if (vpn_profile_guard) {
+        uint8_t header[38];
+        size_t count=pbuf_copy_partial(p,header,sizeof(header),0);
+        vpn_packet_class_t classification=vpn_packet_classify(header,count,my_ap_ip);
+        bool drop=classification==VPN_PACKET_DROP;
+        if (classification==VPN_PACKET_ROUTE) {
+            uint32_t dest; memcpy(&dest,header+30,sizeof(dest));
+            ip4_addr_t dst={.addr=dest};
+            bool local=(dest & htonl(0xffffff00))==(my_ap_ip & htonl(0xffffff00)) && ip4_route(&dst)==netif;
+            if (!local && !vpn_guard_route(dest)) drop=true;
+        }
+        if (drop) { pbuf_free(p); return ERR_OK; }
+    }
+
     // Check to_ap ACL (packets from Clients to ESP32)
     if (!acl_is_empty(ACL_TO_AP)) {
         uint8_t result = acl_check_packet(ACL_TO_AP, p);
@@ -573,7 +594,7 @@ static IRAM_ATTR err_t ap_netif_input_hook(struct pbuf *p, struct netif *netif) 
 
     // Call original input function
     if (original_ap_netif_input != NULL) {
-        return original_ap_netif_input(p, netif);
+        return ethernet_input(p, netif);
     }
 
     return ERR_VAL;
@@ -625,6 +646,11 @@ static IRAM_ATTR err_t ap_netif_linkoutput_hook(struct netif *netif, struct pbuf
     return ERR_IF;
 }
 
+/* Serialize AP filtering/routing with tunnel destruction on the TCP/IP thread. */
+static err_t ap_netif_enqueue(struct pbuf *p,struct netif *netif) {
+    return tcpip_inpkt(p,netif,ap_netif_input_hook);
+}
+
 void init_ap_netif_hooks(void) {
     if (wifiAP != NULL && original_ap_netif_input == NULL) {
         // Get the underlying lwIP netif structure for AP
@@ -637,7 +663,7 @@ void init_ap_netif_hooks(void) {
             if (ap_netif != NULL) {
                 // Store and hook input function
                 original_ap_netif_input = ap_netif->input;
-                ap_netif->input = ap_netif_input_hook;
+                ap_netif->input = ap_netif_enqueue;
 
                 // Store and hook linkoutput function
                 original_ap_netif_linkoutput = ap_netif->linkoutput;

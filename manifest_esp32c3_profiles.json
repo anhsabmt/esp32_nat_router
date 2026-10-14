@@ -1,0 +1,14 @@
+{
+  "name": "ESP32-C3 WireGuard Profiles (4MB)",
+  "version": "2.4.20-wgprofiles.1",
+  "new_install_prompt_erase": true,
+  "builds": [{
+    "chipFamily": "ESP32-C3",
+    "parts": [
+      {"path": "firmware_esp32c3/bootloader.bin", "offset": 0},
+      {"path": "firmware_esp32c3/partition-table.bin", "offset": 32768},
+      {"path": "firmware_esp32c3/ota_data_initial.bin", "offset": 61440},
+      {"path": "firmware_esp32c3/esp32_nat_router.bin", "offset": 131072}
+    ]
+  }]
+}

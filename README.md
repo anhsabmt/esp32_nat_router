@@ -1,3 +1,5 @@
+> **ESP32-C3 4MB / WireGuard profile fork:** This fork adds up to 8 persistent VPN profiles and live switching in the mobile web UI. Only the ESP32-C3 firmware in this fork has been rebuilt with this feature. Other prebuilt target directories are inherited upstream firmware. See [Vietnamese setup guide](docs/WIREGUARD_PROFILES_VI.md) and [build/verification report](BUILD_REPORT.md). The upstream web installer installs upstream firmware.
+
 # ESP32 NAT Router
 
 This is a firmware to use the ESP32 as WiFi NAT router. It routes between the network of the AP interface and the STA or ETH interface as uplink network. It can also work as a VPN router using WireGuard as uplink.

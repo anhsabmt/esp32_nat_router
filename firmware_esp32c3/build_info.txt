@@ -1,7 +1,9 @@
-ESP32 NAT Router Build Information
-=================================
-Target: ESP32-C3 (esp32c3)
-Build Time: 2026-10-08 12:13:45
-Git Hash: 69903c5
-Binary Files: 4
-Build Directory: build_esp32c3
+ESP32-C3 WireGuard Profiles Build Information
+Version: 2.4.20-wgprofiles.1
+Target: esp32c3, 4MB, 160MHz, USB Serial/JTAG
+Build date: 2026-10-14 (Asia/Bangkok)
+ESP-IDF: v5.5.4
+Upstream base: c44331dd475455242a8a8164ebca798774111de6
+App bytes: 1478352
+App SHA256: 09f48cac9eb768dcb912d25841895cd061a216fec57604c5403361fa2d095112
+Validation: local build and host/mock tests passed; hardware not flashed/tested.
